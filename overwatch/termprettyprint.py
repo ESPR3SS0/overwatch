@@ -1,7 +1,7 @@
 
 
 class TermPrinter:
-
+	
 	def __init__(self):
 		self.boarder = '|' 
 		self.underline = '-'
