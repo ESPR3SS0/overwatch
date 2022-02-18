@@ -2,20 +2,14 @@
 	Wrapper for a basic requestor class with Overwatch specific values
 '''
 
-from .requestor import Requestor
+from .ow_http import HTTP
 
 import json
 
 class Overwatch:
 
-	hero_list = [ 'bastion', 'dVa', 'genji' , 'hanzo' , 'junkrat' , 'lucio' , \
-					'mccree' , 'mei' , 'mercy' , 'orisa' , 'pharah' , 'reaper' , \
-                    'reinhardt' , 'roadhog' , 'soldier76' , 'sombra' , 'symmertra' , \
-                    'torbjorn' , 'tracer' , 'widowmaker' , 'winston' , 'zarya' , \
-                    'zenyatta' ]
-
 	def __init__(self):
-		self.api = Requestor()
+		self.api = HTTP()
 		self.base_url = "http://ow-api.com/v1/stats/pc/us/"
 	
 	def PullComplete(self, blizzard_name):
