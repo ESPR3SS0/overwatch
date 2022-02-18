@@ -31,74 +31,60 @@ class TermPrinter:
 		
 		info = info_top + info_row + list_row + info_bottom
 		return info
-			
-	def chart_name_dict(self, title, split_name = True, printchart = False, **kwargs):
-		'''
-			Process will be very similar to easy chart 
-				1. Find the longest row 
-				2. create main rows 
-				3. Create accessory rows 
 
-		 	Expected Params...
-				kwargs : { name : { x, y, x } , ... } 
+
+	def gen_row_str_dict(self, data):
+		str_list = [f"{key}:{value}" for key, value in data.items()]
+		return " ".join(x for x in str_list)
+
+	def gen_row_str_list(self, data):
+		return ",".join(x for x in data)
+
+	def nested_dict_chart(self, title, data):
+		'''
+			Params
+			------
+				title: str
+					Title of chart
+				data : { name : { x, y, x } , ... } 
 		'''
 			
-		lname = 0 
-		linfo = 0 
-	
-		data = {} 
-		
-		# First I'm going to create my data dict 
-		for key, info in kwargs.items():
-			if split_name:
-				name = key.split('#')[0]
-			else:
-				name = key
-			data[name] = info 
-		
-		# Now I'm going to find the longest name and and longest list 
-		
-		for key, info in data.items():
-			# find the longest info 
-			#f"| key: name  key: name  key: name |" 
-			# So the length will be (1space + len(key) + 1colon + 1spave + len(name) + 1space) * nums items + 2 boarder 
-			
-			infol = 2 
-			for inner_key, name in info.items():
-				infol += 4 
-				infol += len(str(inner_key)) + len(str(name))
+		lname = max([len(str(x)) for x in data.keys()])
+		linfo = max([len(str(self.gen_row_str_dict(info))) for info in data.values()])
 
-			if infol > linfo:
-				linfo = infol
-	
-			if len(name) > lname:
-				lname = len(name)
 	
 		# now I have the longest name and longest info row 
 		main_rows = ""
-		for key, info in data.items():
-			row = f"{self.boarder} {key:<{lname}} {self.boarder}"
-			section = ""
-			for inner_key, name in info.items():
-				section += f" {inner_key}: {name} "
+		
+		row_list = [ f"{self.boarder} {name:<{lname}} {self.boarder} " +
+					 f"{self.gen_row_str_dict(info):>{linfo}} {self.boarder}{self.endline}"\
+							for name, info in data.items()]
+		row_len = len(row_list[0])
+		
+		main_rows = "".join(x for x in row_list)
+		#for key, info in data.items():
+		#	row = f"{self.boarder} {key:<{lname}} {self.boarder}"
+		#	section = ""
+		#	for inner_key, name in info.items():
+		#		section += f" {inner_key}: {name} "
 
-			section = f"{section:<{linfo}}" + self.boarder + self.endline
+		#	section = f"{section:<{linfo}}" + self.boarder + self.endline
 
-			row  += section 
-			main_rows += row 
+		#	row  += section 
+		#	main_rows += row 
 
 		# Get the top boarder 
-		top = self.chart_top(len(row) - 1)
+		top = self.chart_top(row_len- 1)
 
 		#Get title 
 		title_row = f"{self.boarder} {title}"
-		title_row = f"{title_row:<{len(row) - 3}} {self.boarder}{self.endline}"
+		title_row = f"{title_row:<{row_len- 3}} {self.boarder}{self.endline}"
 		
 		#Underline the title 
-		title_underline = self.row_dividor(len(row) - 1)
+		title_underline = self.row_dividor(row_len- 1)
 		
 		# Get the top boarder 
-		bottom = self.chart_top(len(row) - 1)
+		bottom = self.chart_top(row_len- 1)
 
 		chart = top + title_row + title_underline + main_rows + bottom
 
@@ -115,6 +101,9 @@ class TermPrinter:
 				kwargs: dict
 					{ name : value } 
 
+			TODO: Find a way to handle iterables 
+			-----
+
 		'''
 
 		# The longest name and longest value ( as in string length ) 
@@ -123,11 +112,12 @@ class TermPrinter:
 		lval = max([len(str(x)) for x in data.values()])
 
 		max_row_len = 0
-		all_cols = ""
 
-		# The following creates a list each row for the body of the chart based on the key:pair values
-		row_list = [ f"{self.boarder} {name:<{lname}} {self.boarder} {value:>{lval}} {self.boarder}{self.endline}" 
-					for name, value in data.items()]
+		# The following creates a list each row for the body of the chart based 
+			#on the key:pair values
+		row_list = [ f"{self.boarder} {name:<{lname}} {self.boarder} " +
+					 f"{value:>{lval}} {self.boarder}{self.endline}"\
+							 for name, value in data.items()]
 
 		# Create a single string for chart body
 		chart_body = "".join(x for x in row_list)
@@ -152,8 +142,11 @@ class TermPrinter:
 
 if __name__ == "__main__":
 	printer = TermPrinter()
-	my = { "strtest" : '89' , "hookaccuracy" : 902523, 'booltest' : True, 1 : "reverseint test"}
+	my = { "strtest" : '89' , "hookaccuracy" : 902523, 
+			'booltest' : True, 1 : "reverseint test"}
 	title = "dummy"
-	chart = printer.dictionary_to_chart(title, my)
+	nested = { "first" : {"inner1" : 4 , "inner2" : 5}}
+	#chart = printer.dictionary_to_chart(title, my)
+	chart = printer.nested_dict_chart(title, nested)
 	print(chart)
 		

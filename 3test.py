@@ -1,7 +1,8 @@
-
+#! /usr/bin/env python3
 from overwatch import HTTP, Hero
 import asyncio 
 
+import json
 
 
 async def main():
@@ -9,13 +10,14 @@ async def main():
 	
 	cli = HTTP()
 	
-	prof = await cli.GetHero(me, Hero.DVA)
+	#prof = await cli.GetHero(me, Hero.DVA)
 	prof2 = await cli.GetComplete(me)
 	
-	print(prof)
-	print(prof2)
-	
-	print("HERE HERE HERE HERE: {}".format(prof == prof2))
+	#print(prof2)
+	walk_dict(prof2[(prof2.keys())[0]], 4)
+
+	with open("data.json", 'w') as f:
+		json.dump(prof2,f, sort_keys=True, indent=4)
 
 asyncio.get_event_loop().run_until_complete(main())
 
