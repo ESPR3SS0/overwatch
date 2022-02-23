@@ -10,16 +10,21 @@
 '''
 
 
-# Comp 
-# Table stat stat stat stat herospecific:dict
-# hero1 
-# hero2
-# hero3
-# hero4 
-# hero5
-# hero6 
-# hero7
-# hero8
+
+# New standard dataFrame structure:
+#
+# ----- UTC-time | blizzard_name | GameMode | Platform | Region | hero_name | ?best? | stats...
+#
+#
+#
+#
+#
+#
+# pass a glob of series strings to the function 
+#
+#
+#   One "series" string: { utc : "" , blizzard_name : "", GameMode : "", Platform : "", Region : "", hero_name : "", stats : {}}
+#
 
 
 import pandas as pd 
@@ -28,23 +33,9 @@ import json
 
 from typing import Dict, List
 
+import pymongo
 
-# Thinking outloud... in a python file 
-#	The json provided is heavily nested, and only has types : [int, dict, type(na), float]
-#		So pretty much no lists, and I don't know what type na is just yet
-#
-#   I'd like to first scan for na's and set those to something known
-#     --> np.NaN 
-#   I'm betting pandas will handle this quite nicely for me 
 
-#  Once some data manipulation is done, I'll probably make wrapper functions for pandas 
-#		filters, then grab some basic data for now and plot it 
-# 
-#  TODO: Impletement plotly and matplotlib/seaborn plots, all very similar however 
-#			I am sure there will be some changing to do for each one 
-#  
-#
-#
 #	Once I am to the point of plotting basic stats I am then going to work on...
 #		1. Beefing up the plots, adding more options (commind line options/ config file options)
 #		2. Getting the mongodb side of things up and running to get cool stats overtime 
@@ -53,101 +44,185 @@ from typing import Dict, List
 #		5. Checkout the django integration 
 
 
-
-def GetAvailableStats(name: str, df: pd.DataFrame) -> List:
-	'''
-	Parameter
-	---------
-		name : str 
-			hero name
-		df : pd.DataFrame
-			pandas dataframe
-	'''
-
-	hero_df = (((df.loc[name]).to_frame()).dropna()).transpose()
-	return hero_df.columns.values.tolist()
-
-def CreateCompDf(data: Dict)-> pd.DataFrame:
-	'''
-		Parameter
-		---------
-			data: Dict
-				Standart dictionary for competitive api call
-		Returns
-		-------
-			pd.DataFrame
-	'''
-
-	flat_dict = {}
-	hero_dict = {}
-
-	# First fill the dataframe with the correct colls and hero
-	for hero in data.keys():
-		hero_dict = {}
-		for key, value in data[hero].items():
-			if value:
-				for key2, val in value.items():
-					hero_dict[key2] = val
-		flat_dict[hero] = hero_dict
+def GenEmptyHeroDf(data, force_shape=True):
+	columns = ['utc_time','blizzard_name', 'GameMode', 'Platform', 'Region', 'hero']
 
 
-	cols = data.keys()
-	index = flat_dict.keys()
+	if force_shape:
+		if "competitiveStats" not in data.keys():
+			return 
+		if "careerStats" not in data["competitiveStats"].keys():
+			return 
+		if "topHeroes" not in data["competitiveStats"].keys():
+			return 
 
-	return (pd.DataFrame(flat_dict)).transpose()
+		# Append all the bottom most keys for each player under careerStats in comp 
+		for hero, hero_dict in data["competitiveStats"]["careerStats"].items():
+			for sub_category, subcat_dict in hero_dict.items():
+				if subcat_dict is None:
+					continue
+				for name in subcat_dict.keys():
+					if name not in columns:
+						columns.append(name)
+	
+		# Append all bottom most keys for each hero under top heroes
+			# There is some overlap from the stats above, howevr top heroes 
+			# Has some stats that the above missing, so this will add them to the cols
+		for hero, hero_dict in data["competitiveStats"]["topHeroes"].items():
+			for key in hero_dict.keys():
+				if key not in columns:
+					columns.append(key)
 
+		if "quickPlayStats" not in data.keys():
+			return 
+		if "careerStats" not in data["quickPlayStats"].keys():
+			return 
+		if "topHeroes" not in data["quickPlayStats"].keys():
+			return 
 
-def LocHeroStats(hero : str, df: pd.DataFrame, stats: List[str]) -> pd.DataFrame:
-	'''
-		Grab stats for hero in dataframe
-		TODO: Evalute the usefulness of this function
+		# Append all the bottom most keys for each player under careerStats in comp 
+		for hero, hero_dict in data["quickPlayStats"]["careerStats"].items():
+			for sub_category, subcat_dict in hero_dict.items():
+				if subcat_dict is None:
+					continue
+				for name in subcat_dict.keys():
+					if name not in columns:
+						columns.append(name)
 
-		Parameters
-		----------
-			hero : str
-				name of hero
-			df : pd.DataFrame
-				Competitive dataframe 
-			stats : List[str]
-				List of keywords to locate
+		for hero, hero_dict in data["quickPlayStats"]["topHeroes"].items():
+			for key in hero_dict.keys():
+				if key not in columns:
+					columns.append(key)
 
-		Returns
-		-------
-			pd.DataFrame 
-				Including all the found stats for the passed hero 
-	'''
-	ret_df = pd.DataFrame(np.nan, index=[hero],
-						columns=[stat for stat in stats if stat in df.columns])
-
-	for stat in ret_df.columns:
-		ret_df[stat] = df.at[hero, stat]
-
-	ret_df = ret_df.dropna()
-	return ret_df
+	hero_df = pd.DataFrame(columns=columns)
+	print("here")
+	return hero_df
 	
 
-def LocMany(hero: str, stats: List[str], df_list : Dict[str, pd.DataFrame]) -> pd.DataFrame:
+
+
+def CreateHeroCompDict(data, hero):
+
+	hero_dict = data["competitiveStats"]["topHeroes"][hero]
+
+	for key, sub_dict in data["competitiveStats"]["careerStats"][hero].items():
+		if sub_dict is None:
+			continue
+		for subkey, value in sub_dict.items():
+			hero_dict[subkey] = value
+
+	return hero_dict
+
+def CreateHeroQuickDict(data, hero):
+
+	hero_dict = data["quickPlayStats"]["topHeroes"][hero]
+
+	for key, sub_dict in data["quickPlayStats"]["careerStats"][hero].items():
+		if sub_dict is None:
+			continue
+		for subkey, value in sub_dict.items():
+			hero_dict[subkey] = value
+
+	return hero_dict
+
+def CreateHeroDf(data: Dict):
 	'''
-		Another filter wrapper
-
-		Parameters
-		----------
-			stats : List[str]
-				keys for the wants stats 
-			df_list : Dict[str, pd.DataFrame]
-				blizzard_name : comp_df
+	nop
 	'''
 
+	# Alright so new task...
+	# I have restructed the look of what I want a standard data frame 
+	#   to look like 
 
-	ret_df = pd.DataFrame(np.nan, index=[name for name in df_list.keys()],
-						columns=stats)
+# ----- UTC-time | blizzard_name | GameMode | Platform | Region | hero_name | ?best? | stats...
+
+	# Stats include the name of EVERY stat in the dictionary inside...
+		# competitiveStats.careerStats
+		# competitiveStats.topHeroes
+		# quickPlayStats.careerStats
+		# quickPlayStats.topHeroes
+
+	# This dat frame IGNORES the following Stat/status in dictionary:
+		# competitiveStats.awards
+		# competitiveStats.games
+		# gamesWon
+		# level
+		# prestige
+		# quickPlayStats.awards
+		# quickPLayStats.game
+		# rating
+		# ratings --> which is a list 
+
+	# THEREFORE 
+	# Because these stats are structure differently, I will gave another standard 
+		# DataFrame that will contion this. 
 	
-	for blizzard_name, comp_df in df_list.items():
-		for stat in stats:
-			ret_df.at[blizzard_name, stat] = comp_df.at[hero, stat]
-		
-	return ret_df
+	# Two dataframes are HERO_DATA and GENERAL 
 
+
+
+	# Assuming standard mongodb document to dictionary is being passed 
+		# One row with game mode competitive will only be for one hero
+			# and include both the data from competitive.careerStats and
+			#    data from competitive.topHeroes
+	
+
+	blizzard_name = "test"
+	utc_time = "time"
+	region = "UC"
+	platform = "PC"
+
+	# Grab an empty dataFrame with the correct columns 
+	df = GenEmptyHeroDf(data)
+
+	heroes = data['competitiveStats']['topHeroes'].keys() 
+
+	for hero in heroes:
+		hero_dict = CreateHeroCompDict(data, hero)
+		hero_dict['blizzard_name'] = blizzard_name
+		hero_dict['utc_time'] = utc_time
+		hero_dict['game_mode'] = "competitive"
+		hero_dict['region'] = region
+		hero_dict['platform'] = platform
+		hero_dict['hero'] = hero
+
+		#hero_df = pd.DataFrame(hero_dict)
+		df.loc[len(df.index)] = hero_dict
+
+		#df = pd.concat([df,pd.DataFrame(hero_dict)], ignore_index=True)
+	
+	for hero in heroes:
+		try:
+			hero_dict = CreateHeroQuickDict(data, hero)
+		except KeyError as e:
+			print("Key Error - No character? : {}".format(e))
+			continue
+		hero_dict['blizzard_name'] = blizzard_name
+		hero_dict['utc_time'] = utc_time
+		hero_dict['game_mode'] = "quick"
+		hero_dict['region'] = region
+		hero_dict['platform'] = platform
+		hero_dict['hero'] = hero
+
+		df.loc[len(df.index)] = hero_dict
+		#df = pd.concat([df,pd.DataFrame(hero_dict)], ignore_index=True)
+	
+	# Hero df for one mongodb document blob
+	return df
+
+	# Now to fill the data 
+	# each new combination can only be one character and one GameMode
+	# So for the typical doc...
+		# Each character will have two indexes in the stand hero_dataframe
+		# one for comp, one for quick 
+	
+	# At this point the data was structure correctly 
+
+def CreateGeneralDf(data:Dict):
+	'''
+	nop
+	'''
+	return True
 
 
 
@@ -156,46 +231,58 @@ def LocMany(hero: str, stats: List[str], df_list : Dict[str, pd.DataFrame]) -> p
 
 if __name__ == "__main__":
 
-	with open("data.json", 'r') as f:
+	with open("../sample_complete_pulls/data.json", 'r') as f:
 		data = json.load(f)
 
-	with open("data_player2.json", 'r') as f:
-		data_player2 = json.load(f)
+
+	#gen_cols = GenHeroDfColumns(data)
+
+	df = CreateHeroDf(data)
+
+	print(df.head())
+
+	#print(gen_cols.columns)
+
+	#with open("../sample_complete_pulls/data_player2.json", 'r') as f:
+	#	data_player2 = json.load(f)
 
 
 
-	comp_data = data["competitiveStats"]["careerStats"]
-	comp_player2 = data_player2["competitiveStats"]["careerStats"]
+	#comp_data = data["competitiveStats"]["careerStats"]
+	#comp_player2 = data_player2["competitiveStats"]["careerStats"]
 
-	#print(comp_data.keys())
-
-
-	comp_df = CreateCompDf(comp_data)
-	comp_player2_df = CreateCompDf(comp_player2)
+	##print(comp_data.keys())
 
 
-	#df = comp_df[comp_df["winrate"] 
+	#comp_df = CreateCompDf(comp_data)
+	#comp_player2_df = CreateCompDf(comp_player2)
 
-	#ana_col = GetAvailableStats('ana', comp_df)
+	#with open('data_player1_pickle','wb') as f:
+	#	comp_df.to_pickle(f)
 
-	#bp = LocHeroStats('reaper', comp_df, ['gamesPlayed', 'gamesWon'])
+
+	##df = comp_df[comp_df["winrate"] 
+
+	##ana_col = GetAvailableStats('ana', comp_df)
+
+	##bp = LocHeroStats('reaper', comp_df, ['gamesPlayed', 'gamesWon'])
+	##print(bp)
+
+	#bp = LocMany('reaper', ['gamesPlayed', 'gamesWon'], {"player1":comp_df, "player2":comp_player2_df})
 	#print(bp)
 
-	bp = LocMany('reaper', ['gamesPlayed', 'gamesWon'], {"player1":comp_df, "player2":comp_player2_df})
-	print(bp)
+	#pd.options.plotting.backend = "plotly"
 
-	pd.options.plotting.backend = "plotly"
+	#fig = bp.plot(kind="bar")
+	#fig.show()
 
-	fig = bp.plot(kind="bar")
-	fig.show()
+	#player1_played = comp_df.at['reaper', 'gamesPlayed']
+	#player1_won = comp_df.at['reaper', 'gamesWon']
 
-	player1_played = comp_df.at['reaper', 'gamesPlayed']
-	player1_won = comp_df.at['reaper', 'gamesWon']
+	#player2_played= comp_player2_df.at['reaper', 'gamesPlayed']
+	#player2_won= comp_player2_df.at['reaper', 'gamesWon']
 
-	player2_played= comp_player2_df.at['reaper', 'gamesPlayed']
-	player2_won= comp_player2_df.at['reaper', 'gamesWon']
-
-	print("player1 ana stat-- games played : {} games won : {}".format(player1_played, player1_won))
-	print("player2 ana stat-- games played : {} games won : {}".format(player2_played, player2_won))
+	#print("player1 ana stat-- games played : {} games won : {}".format(player1_played, player1_won))
+	#print("player2 ana stat-- games played : {} games won : {}".format(player2_played, player2_won))
 
 
