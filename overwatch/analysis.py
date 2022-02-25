@@ -35,6 +35,9 @@ from typing import Dict, List
 
 import pymongo
 
+#from .db import Monodb
+from db import Mongodb
+
 
 #	Once I am to the point of plotting basic stats I am then going to work on...
 #		1. Beefing up the plots, adding more options (commind line options/ config file options)
@@ -125,14 +128,16 @@ def CreateHeroQuickDict(data, hero):
 
 	return hero_dict
 
-def CreateHeroDf(data: Dict):
+def HeroDf_FromMongo(data: Dict):
 	'''
 	nop
-	'''
 
-	# Alright so new task...
-	# I have restructed the look of what I want a standard data frame 
-	#   to look like 
+
+	Parameters
+	----------
+		data: Dict 
+			A document object from the mongo db 
+	'''
 
 # ----- UTC-time | blizzard_name | GameMode | Platform | Region | hero_name | ?best? | stats...
 
@@ -159,31 +164,30 @@ def CreateHeroDf(data: Dict):
 	
 	# Two dataframes are HERO_DATA and GENERAL 
 
-
-
 	# Assuming standard mongodb document to dictionary is being passed 
 		# One row with game mode competitive will only be for one hero
 			# and include both the data from competitive.careerStats and
 			#    data from competitive.topHeroes
 	
 
-	blizzard_name = "test"
-	utc_time = "time"
-	region = "UC"
-	platform = "PC"
+	#blizzard_name = "test"
+	#utc_time = "time"
+	#region = "UC"
+	#platform = "PC"
 
 	# Grab an empty dataFrame with the correct columns 
+
 	df = GenEmptyHeroDf(data)
 
 	heroes = data['competitiveStats']['topHeroes'].keys() 
 
 	for hero in heroes:
 		hero_dict = CreateHeroCompDict(data, hero)
-		hero_dict['blizzard_name'] = blizzard_name
-		hero_dict['utc_time'] = utc_time
+		hero_dict['blizzard_name'] = data['blizzard_name']
+		hero_dict['utc_time'] = data['utc_time']
 		hero_dict['game_mode'] = "competitive"
-		hero_dict['region'] = region
-		hero_dict['platform'] = platform
+		hero_dict['region'] = data['region']
+		hero_dict['platform'] = data['platform']
 		hero_dict['hero'] = hero
 
 		#hero_df = pd.DataFrame(hero_dict)
@@ -195,13 +199,15 @@ def CreateHeroDf(data: Dict):
 		try:
 			hero_dict = CreateHeroQuickDict(data, hero)
 		except KeyError as e:
-			print("Key Error - No character? : {}".format(e))
+			print("Key Error In Quick - No character? : {}".format(e))
 			continue
-		hero_dict['blizzard_name'] = blizzard_name
-		hero_dict['utc_time'] = utc_time
+
+		# Eeach hero needs each of the following
+		hero_dict['blizzard_name'] = data['blizzard_name']
+		hero_dict['utc_time'] = data['utc_time']
 		hero_dict['game_mode'] = "quick"
-		hero_dict['region'] = region
-		hero_dict['platform'] = platform
+		hero_dict['region'] = data['region']
+		hero_dict['platform'] = data['platform']
 		hero_dict['hero'] = hero
 
 		df.loc[len(df.index)] = hero_dict
@@ -231,15 +237,30 @@ def CreateGeneralDf(data:Dict):
 
 if __name__ == "__main__":
 
-	with open("../sample_complete_pulls/data.json", 'r') as f:
-		data = json.load(f)
+
+	db = Mongodb(db_name="OVERWATCH_DEFAULT")
+	data = db.FetchAllDocs('NETERO-31710')
+	print(data)
+
+	#with open("../sample_complete_pulls/data.json", 'r') as f:
+	#	data = json.load(f)
 
 
 	#gen_cols = GenHeroDfColumns(data)
 
-	df = CreateHeroDf(data)
+	df = HeroDf_FromMongo(data[0])
 
-	print(df.head())
+
+	ch = ['winRate', 'winPercentage'] 
+	for x in ch:
+		if x in df.columns:
+			print("{} in cols".format(x))
+	#print(df.columns)
+
+	tp = df[['hero','gamesPlayed','gamesLost','gamesWon','gamesTied']]
+	
+	print(tp)
+
 
 	#print(gen_cols.columns)
 

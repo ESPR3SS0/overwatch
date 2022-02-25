@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+import asyncio
+
 import pymongo
 from pymongo import MongoClient
 import time
@@ -12,8 +14,13 @@ import numpy as np
 
 from typing import List, Dict
 
+#from .enums import Hero, Region, Platform
 from enums import Hero, Region, Platform
 
+
+#from .ow_http import HTTP
+
+import time
 
 
 # STRUCTURE OF DATABASE 
@@ -24,63 +31,43 @@ from enums import Hero, Region, Platform
 #     collection :: blizzard_name 
 #		Each collection will be named after a blizzard name 
 #	  
-#	TODO: In addition to id'ing each document, include a timestamp and 
-#			pull type ['complete', 'competitive', or ...]
-#     doc :: complete_pull ; right now I'm only setting up the db for 'complete pulls'
-#           complete stat json pulled from ow-api site
-#
-# Thinking out loud... onto a python script again 
-#
-# Now I have a problem but it's a good problem...
-#	How to split up the data manipulation between pymongo and pandas 
-#   Originally the idea was to store the raw json inside of pymongo 
-#   And leave all data manipulation to pandas 
-#
-#   However now that I've been playing with pymongo some, selecting 
-#		documents is very easy 
-#
-#	
-#	I think I am going to shoot for a happy medium...
-#
-#      1. Do the filtering that I can in pymongo, so what that means to me 
-#			as of now is selecting the smallest dictionary possible
-#			from collections and returning those 
-#
-#		2. Once the smallest dictionaries necessary have been pulled from the 
-#			database leave the computations and higher level filtering/plotting 
-#			ect., to pandas
-#
-#		NOTICE: This will make same manipulating with pandas more difficult 
-#				now that I no longer will always be passing a standard dictionary 
-#				set up. I do believe I will be able to construct generalized functions 
-#				that work non-the-less
+#     doc :: data
+#           stat data pulled from ow-api site
 
 
 # TODO: use shlex or some other form of running os cmds? 
-# TODO: windows/mac support?? Though this is liked a loaded question
-class MongoServer:
-	def __init__(self):
-		self.is_running = False
+# TODO: windows/mac support?? Though this is likly a loaded question
+class Mongodb:
 
-	def start(self):
+	def startServer(self):
 		cmd = "mongod  >/dev/null 2>&1"
 		subprocess.Popen(cmd, shell=True)
+
+		self._server_is_running = True
 		return 
 	
-	def stop(self):
+	def stopServer(self):
 		cmd = "pkill mongod"
 		subprocess.Popen(cmd, shell=True)
+		self._server_is_running = False
 		return 
 
-class MongoQuery:
-	def __init__(self, server, database):
-		self._server = server
+	def checkServer(self):
+		cmd = "ps -aux | grep mongo"
+		proc = subprocess.run(cmd, shell=True, capture_output=True)
+		if "mongod" in proc.stdout.decode('utf-8'):
+			return True
+		return False 
+
+#class MongoClient:
+	def __init__(self, db_name="OVERWATCH_DEFAULT"):
+		self._server_is_running = False
 		self.client = MongoClient()
 
-		self.db = self.client[database]
+		self.db = self.client[db_name]
 
-		if not self._server.is_running:
-			self._server.start()
+		if not self._server_is_running:
+			self.startServer()
 	
 
 	def _formatquery(self, keys: List[str]):
@@ -110,21 +97,31 @@ class MongoQuery:
 				docs.append(doc)
 		return docs
 
-
-
-	def CollectFromFilter(blizzard_names: List[str], 
-			keys: List[str])-> Dict[str,pymongo.collection]:
+	def FetchAllDocs(self, blizzard_name: str) -> List:
 		'''
-			Use the same document filter/query str from multiple players
+			Parameters
+			----------
+				blizzard_name : str 
+					name in blizzard, this will be the name of the collection
 		'''
-		query_str = self._formatquery(keys)
-		doc_dict = {}
-		for name in blizzard_names:
-			docs = [doc for doc in (self.db[blizzard_name].find({}, {query_str:1}))]
-			doc_dict[name] = docs
-		return doc_dict
+		print((self.db[blizzard_name]).find())
+		return list((self.db[blizzard_name]).find())
 
-	def CollectFromFilters(blizzard_names: List[str], nested_keys: List[List[keys]]):
+
+
+	#def CollectFromFilter(blizzard_names: List[str], 
+	#		keys: List[str])-> Dict[str, pymongo.collection]:
+	#	'''
+	#		Use the same document filter/query str from multiple players
+	#	'''
+	#	query_str = self._formatquery(keys)
+	#	doc_dict = {}
+	#	for name in blizzard_names:
+	#		docs = [doc for doc in (self.db[blizzard_name].find({}, {query_str:1}))]
+	#		doc_dict[name] = docs
+	#	return doc_dict
+
+	def CollectFromFilters(self, blizzard_names: List[str], nested_keys: List[List[str]]):
 		'''
 			Use the same multiple queries for multiple players
 		'''
@@ -143,7 +140,7 @@ class MongoQuery:
 		#
 		#			}
 
-	def CollectUniqueFilters(name_filter_pairs: Dict[str,List[List[str]]]):
+	def CollectUniqueFilters(self, name_filter_pairs: Dict[str,List[List[str]]]):
 		'''
 			I want this to be the highest level filter for pulling from mongodb so far 
 
@@ -161,7 +158,7 @@ class MongoQuery:
 
 		# Need to make sure the filter parameter is well constructed
 
-	def ConvertDocData(blizzard_name, gameMode, region=Region.US, platform=Platform.PC):
+	def ConvertDocData(self, blizzard_name, gameMode, region=Region.US, platform=Platform.PC):
 		'''
 			Convert the Data to the format that the standard DataFrame expects 
 
@@ -178,38 +175,52 @@ class MongoQuery:
 			topHeroes.blizzard_name
 		'''
 
-	def RawPullToDoc(blizzard_name, pull_time_utc, pull_type, region=Region.US, 
-			platform=Platform.PC, json_data):
+	def ConvertPull(self, json_data, blizzard_name, pull_time_utc, pull_type, region=Region.US, 
+			platform=Platform.PC):
 			'''
 				Edit the json return from OW-API. 
 				Append the time, region, platform, blizzard_name, pull type to json. 
 			'''
 
-			json_data['blizzard_name'] = blizzard_name
-			json_data['utc_time'] = pull_time_utc
-			json_data['pull_type'] = pull_type
-			json_data['region'] = region
-			json_data['platform'] = platform
-			return json_data
+			data = dict(json_data)
+			data['blizzard_name'] = blizzard_name
+			data['utc_time'] = pull_time_utc
+			data['pull_type'] = pull_type
+			data['region'] = str(region)
+			data['platform'] = str(platform)
+			return data
 
+	def InsertData(self, data, blizzard_name):
+		'''
+		Parameters
+		----------
+			data: dict
+				json from ow_http pull
 
+			blizzard_name: str
+				blizzard name   <name>-<vals>
+		'''
+		collection = self.db[blizzard_name]
+
+		collection.insert_one(data)
+		return 
 
 
 
 if __name__ == "__main__":
-	server = MongoServer()
-	server.start()
-	
-	time.sleep(3)
 
-	database = 'test_data'
+	mongo = Mongodb(db_name='test_data')
 
-	mongosh = MongoQuery(server, database)
+	#mongosh = MongoQuery(server, database)
 
-	reaps_data = mongosh.QueryStat('player1', ['competitiveStats','careerStats','reaper'])
-	for reaps in reaps_data:
-		print(reaps)
+	#reaps_data = mongo.QueryStat('player1', ['competitiveStats','careerStats','reaper'])
+	#for reaps in reaps_data:
+		#print(reaps)
+	print('here')
 
+	print(mongo.checkServer())
+
+	print(mongo.FetchAllDocs('player1'))
 
 
 	#with open("../sample_complete_pulls/player1_data2.json", 'r') as f:

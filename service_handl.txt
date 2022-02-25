@@ -1,0 +1,20 @@
+
+
+
+| Python Service | 
+------------------
+- Use ow_http to make calls 
+- Use mongodb to save 
+
+
+| db |
+-----
+- Small data formats 
+- Make sure mongo service is ruinning 
+- Add some data querying wrappers/features 
+
+
+| http_ow |
+-----------
+- Make requests to ow-api 
+- asyncronous 
