@@ -15,6 +15,8 @@ from .errors import HTTPException
 #import json
 
 # Need to fix the issue with old lib always expecting json
+
+# TODO: async?
 async def ResponseJSONorTEXT(resp: Response) -> Union[dict, list, str]:
 	"""
 		Determine type of response
