@@ -14,11 +14,13 @@ import numpy as np
 
 from typing import List, Dict
 
-#from .enums import Hero, Region, Platform
-from enums import Hero, Region, Platform
+from .enums import Hero, Region, Platform
+#from enums import Hero, Region, Platform
 
 
 #from .ow_http import HTTP
+
+from .errors import MongoException
 
 import time
 
@@ -33,34 +35,16 @@ import time
 #	  
 #     doc :: data
 #           stat data pulled from ow-api site
+#			NOTE: This data is NEARLY untouched, acouple new key
+#					pair values are appended to the db
 
 
 # TODO: use shlex or some other form of running os cmds? 
 # TODO: windows/mac support?? Though this is likly a loaded question
 class Mongodb:
 
-	def startServer(self):
-		cmd = "mongod  >/dev/null 2>&1"
-		subprocess.Popen(cmd, shell=True)
-
-		self._server_is_running = True
-		return 
-	
-	def stopServer(self):
-		cmd = "pkill mongod"
-		subprocess.Popen(cmd, shell=True)
-		self._server_is_running = False
-		return 
-
-	def checkServer(self):
-		cmd = "ps -aux | grep mongo"
-		proc = subprocess.run(cmd, shell=True, capture_output=True)
-		if "mongod" in proc.stdout.decode('utf-8'):
-			return True
-		return False 
-
-#class MongoClient:
 	def __init__(self, db_name="OVERWATCH_DEFAULT"):
+
 		self._server_is_running = False
 		self.client = MongoClient()
 
@@ -68,24 +52,52 @@ class Mongodb:
 
 		if not self._server_is_running:
 			self.startServer()
-	
 
-	def _formatquery(self, keys: List[str]):
+	def startServer(self):
 		'''
-			Wrapper, latter I will add checking here 
+		Check that the mongodb service is running
+		'''
+		cmd = "mongod  >/dev/null 2>&1"
+		subprocess.Popen(cmd, shell=True)
+
+		self._server_is_running = True
+		return 
+	
+	def stopServer(self):
+		'''
+		Check that the mongodb service is running
+		'''
+		cmd = "pkill mongod"
+		subprocess.Popen(cmd, shell=True)
+		self._server_is_running = False
+		return 
+
+	def checkServer(self):
+		'''
+		Check that the mongodb service is running
+		'''
+		cmd = "ps -aux | grep mongo"
+		proc = subprocess.run(cmd, shell=True, capture_output=True)
+		if "mongod" in proc.stdout.decode('utf-8'):
+			return True
+		return False 
+
+	def _formatquery(self, keys: List[str])-> str:
+		'''
+		Wrapper, latter I will add checking here 
 
 		'''
 		return ".".join(x for x in keys)
 
 	def QueryStat(self, blizzard_name: str, keys: List[str]):
 		'''
-			Parameters
-			----------
-				blizzard_name: str
-					blizzard_name, this will be the name of the collection
+		Parameters
+		----------
+			blizzard_name: str
+				blizzard_name, this will be the name of the collection
 
-				keys: List[str]
-					keys for the desired query 
+			keys: List[str]
+				keys for the desired query 
 		'''
 		query_str = self._formatquery(keys)
 
@@ -99,12 +111,16 @@ class Mongodb:
 
 	def FetchAllDocs(self, blizzard_name: str) -> List:
 		'''
-			Parameters
-			----------
-				blizzard_name : str 
-					name in blizzard, this will be the name of the collection
+		Parameters			
+		----------
+		blizzard_name : str 
+			name in blizzard, this will be the name of the collection
+
+		Returns 
+		-------
+		List
+			a list of all the Document in the Collection
 		'''
-		print((self.db[blizzard_name]).find())
 		return list((self.db[blizzard_name]).find())
 
 
@@ -200,10 +216,34 @@ class Mongodb:
 			blizzard_name: str
 				blizzard name   <name>-<vals>
 		'''
+
+		if not self.AssertCollectionExists(blizzard_name):
+			raise MongoExcpetion
+
 		collection = self.db[blizzard_name]
 
 		collection.insert_one(data)
 		return 
+
+	def AssertCollectionExists(self, collection_name: str) -> bool:
+		'''
+		Assert that a given collection exitsts 
+
+		Parameters
+		----------
+			collection_name: str
+				Name of a collection (This will be the same as blizzard_name)
+		'''
+
+		# Check that Mongodb is running first?
+		if not self.checkServer(self):
+			return False
+
+		# TODO: Check that db connection is good first?
+
+		if collection_name in self.db.list_collection_names():
+			return True
+		return False
 
 
 

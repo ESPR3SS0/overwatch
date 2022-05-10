@@ -26,3 +26,7 @@ class HTTPException(OverwatchException):
 		else:
 			message: Union[dict, list, str] = res
 		super().__init__(f"HTTP {status} - {message}")
+
+class MongoException(Exception):
+	"""Base exception class for Mongodb obj"""
+	pass 
